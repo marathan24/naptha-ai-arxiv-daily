@@ -1,1 +1,1 @@
-# naptha-shopping-assistant
+# naptha-shopping-agent
