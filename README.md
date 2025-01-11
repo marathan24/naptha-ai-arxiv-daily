@@ -1,1 +1,1 @@
-# naptha-shopping-agent
+# naptha-arxiv-daily
