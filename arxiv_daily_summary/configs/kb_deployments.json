@@ -1,31 +1,30 @@
 [
-    {
+  {
       "name": "kb_deployment_1",
       "module": {"name": "arxiv_daily_summary"},
       "node": {"ip": "node.naptha.ai"},
       "config": {
-        "storage_type": "db",
-        "path": "arxiv_daily_summary",
-        "schema": {
-          "id": {"type": "INTEGER", "primary_key": true},
-          "title": {"type": "TEXT"},
-          "summary": {"type": "TEXT"},
-          "embedding": {"type": "vector", "dimension": 1536},
-          "metadata": {"type": "jsonb"}
-        },
-        "embedder": {
-          "model": "text-embedding-3-small",
-          "chunk_size": 1000,
-          "chunk_overlap": 200,
-          "separators": ["\n\n", "\n", ". ", " ", ""],
-          "embedding_dim": 1536
-        },
-        "retriever": {
-          "type": "vector",
-          "field": "embedding",
-          "k": 5
-        }
+          "storage_type": "db",
+          "path": "arxiv_daily_summary",
+          "schema": {
+              "id": {"type": "INTEGER", "primary_key": true},
+              "title": {"type": "TEXT"},
+              "summary": {"type": "TEXT"},
+              "embedding": {"type": "vector", "dimension": 1536},
+              "metadata": {"type": "jsonb"}
+          },
+          "embedder": {
+              "model": "text-embedding-3-small",
+              "chunk_size": 1000,
+              "chunk_overlap": 200,
+              "separators": ["\n\n", "\n", ". ", " ", ""],
+              "embedding_dim": 1536
+          },
+          "retriever": {
+              "type": "vector",
+              "field": "embedding",
+              "k": 5
+          }
       }
-    }
-  ]
-  
+  }
+]
