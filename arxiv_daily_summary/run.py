@@ -9,14 +9,14 @@ from naptha_sdk.schemas import AgentDeployment, AgentRunInput
 from naptha_sdk.inference import InferenceClient
 from naptha_sdk.storage.storage_provider import StorageProvider
 from naptha_sdk.storage.schemas import (
-    CreateStorageRequest,          # new!
+    CreateStorageRequest,          
     ReadStorageRequest,
     ListStorageRequest,
     DeleteStorageRequest,
     DatabaseReadOptions
 )
 
-
+from arxiv_daily_summary.schemas import ArxivKBConfig
 from arxiv_daily_summary.schemas import SystemPromptSchema, InputSchema
 from arxiv_daily_summary.scraper import scrape_arxiv  
 from arxiv_daily_summary.embedder import ArxivEmbedder  
@@ -27,20 +27,28 @@ logger = logging.getLogger(__name__)
 class ArxivDailySummaryAgent:
     def __init__(self, deployment: Dict[str, Any]):
         self.deployment = deployment
-        self.config = self.deployment.config  
-        kb_deployment = self.deployment.kb_deployments[0]  
-        self.kb_config = kb_deployment.config  
+        self.config = self.deployment.config  # (Agent config)
+        
+        # Grab the KB deployment
+        kb_deployment = self.deployment.kb_deployments[0]
+        # Convert the standard KBConfig → ArxivKBConfig:
+        self.kb_config = ArxivKBConfig.model_validate(**kb_deployment.config.model_dump())
+
         self.storage_provider = StorageProvider(kb_deployment.node)
         self.storage_type = self.kb_config.storage_type
-        self.table_name = self.kb_config.path             
-        self.schema = self.kb_config.schema
+        self.table_name   = self.kb_config.path
+        self.schema       = self.kb_config.schema
 
+        # Instead of .get(...), we do dot-attribute:
         embedder_cfg = self.kb_config.embedder
+        if not embedder_cfg:
+            raise ValueError("No embedder config found in kb_config!")
         embedder_model = embedder_cfg.model
+        
         self.embedder = ArxivEmbedder(model=embedder_model)
-
         self.system_prompt = SystemPromptSchema(role=self.config["system_prompt"]["role"])
         self.inference_provider = InferenceClient(self.deployment.node)
+
 
     async def run_arxiv_agent(self, module_run: AgentRunInput):
         """Entry point that selects a method based on the input."""
@@ -127,7 +135,11 @@ class ArxivDailySummaryAgent:
         logger.info("Embedding user query for vector similarity search.")
         query_embedding = self.embedder.embed_text(query)
 
-        top_k = self.kb_config.get("retriever", {}).get("k", 5)
+        retriever_cfg = self.kb_config.retriever
+        if retriever_cfg is not None:
+            top_k = retriever_cfg.k
+        else:
+            top_k = 5
         read_opts = DatabaseReadOptions(
             query_vector=query_embedding,
             vector_col="embedding",
