@@ -127,6 +127,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+ashwarya.pem
 
 # Spyder project settings
 .spyderproject

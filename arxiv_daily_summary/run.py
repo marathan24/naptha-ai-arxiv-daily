@@ -25,18 +25,18 @@ logger = logging.getLogger(__name__)
 
 
 class ArxivDailySummaryAgent:
-    def __init__(self, deployment: AgentDeployment):
+    def __init__(self, deployment: Dict[str, Any]):
         self.deployment = deployment
         self.config = self.deployment.config  
         kb_deployment = self.deployment.kb_deployments[0]  
         self.kb_config = kb_deployment.config  
         self.storage_provider = StorageProvider(kb_deployment.node)
-        self.storage_type = self.kb_config["storage_type"] 
-        self.table_name = self.kb_config["path"]             
-        self.schema = self.kb_config["schema"]
+        self.storage_type = self.kb_config.storage_type
+        self.table_name = self.kb_config.path             
+        self.schema = self.kb_config.schema
 
-        embedder_cfg = self.kb_config.get("embedder", {})
-        embedder_model = embedder_cfg.get("model", "text-embedding-3-small")
+        embedder_cfg = self.kb_config.embedder
+        embedder_model = embedder_cfg.model
         self.embedder = ArxivEmbedder(model=embedder_model)
 
         self.system_prompt = SystemPromptSchema(role=self.config["system_prompt"]["role"])
