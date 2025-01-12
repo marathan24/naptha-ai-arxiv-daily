@@ -7,7 +7,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<=3.13"
-naptha-sdk = {git = "https://github.com/NapthaAI/naptha-sdk.git"}
+naptha-sdk = {git = "https://github.com/NapthaAI/naptha-sdk.git", branch = "feat/unified-storage-api"}
 pydantic = "^2.7.0"
 colorama = "^0.4.6"
 openai = "^1.58.1"

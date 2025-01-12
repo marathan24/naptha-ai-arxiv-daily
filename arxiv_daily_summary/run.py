@@ -221,10 +221,8 @@ if __name__ == "__main__":
 
     deployment = asyncio.run(setup_module_deployment(
         "agent",
-        "configs/deployment.json",
-        node_url=os.getenv("NODE_URL"),
-        user_id=naptha.user.id,
-        load_persona_data=True
+        "arxiv_daily_summary/configs/deployment.json",
+        node_url=os.getenv("NODE_URL")  
     ))
 
     init_run = {
