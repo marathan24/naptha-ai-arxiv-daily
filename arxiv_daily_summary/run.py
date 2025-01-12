@@ -9,13 +9,13 @@ from naptha_sdk.schemas import AgentDeployment, AgentRunInput
 from naptha_sdk.inference import InferenceClient
 from naptha_sdk.storage.storage_provider import StorageProvider
 from naptha_sdk.storage.schemas import (
-    CreateTableRequest,
-    CreateRowRequest,
+    CreateStorageRequest,          # new!
     ReadStorageRequest,
     ListStorageRequest,
     DeleteStorageRequest,
     DatabaseReadOptions
 )
+
 
 from arxiv_daily_summary.schemas import SystemPromptSchema, InputSchema
 from arxiv_daily_summary.scraper import scrape_arxiv  
@@ -57,13 +57,15 @@ class ArxivDailySummaryAgent:
         """
         Create the database table for storing arXiv papers.
         """
-        create_table_request = CreateTableRequest(
-            storage_type=self.storage_type,
-            path=self.table_name,
-            schema=self.schema
+        create_table_request = CreateStorageRequest(
+        storage_type=self.storage_type,
+        path=self.table_name,
+        data={"schema": self.schema}   # store the schema under 'data'
         )
-        logger.info(f"Creating table '{self.table_name}' with schema: {self.schema}")
-        await self.storage_provider.create(create_table_request)
+
+        # the storage_provider no longer has .create(), so we do:
+        await self.storage_provider.execute(create_table_request)
+
         return {"status": "success", "message": f"Initialized table '{self.table_name}'"}
 
     async def add_data(self, input_data: Dict[str, Any], *args, **kwargs):
@@ -102,12 +104,13 @@ class ArxivDailySummaryAgent:
 
         logger.info("Storing documents in the table.")
         for doc in tqdm(documents):
-            create_row_req = CreateRowRequest(
+            create_row_req = CreateStorageRequest(
                 storage_type=self.storage_type,
                 path=self.table_name,
-                data=doc
+                data={"data": doc}  # wrap your doc
             )
-            await self.storage_provider.create(create_row_req)
+            await self.storage_provider.execute(create_row_req)
+
 
         return {"status": "success", "message": f"Added {len(documents)} papers to '{self.table_name}'"}
 

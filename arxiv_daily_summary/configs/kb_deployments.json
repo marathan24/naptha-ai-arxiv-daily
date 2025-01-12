@@ -2,7 +2,7 @@
     {
       "name": "kb_deployment_1",
       "module": {"name": "arxiv_daily_summary"},
-      "node": {"ip": "localhost"},
+      "node": {"ip": "node.naptha.ai"},
       "config": {
         "storage_type": "db",
         "path": "arxiv_daily_summary",
