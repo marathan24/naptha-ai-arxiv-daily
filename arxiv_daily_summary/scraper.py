@@ -4,7 +4,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def scrape_arxiv(query: str, max_results: int = 50) -> List[Dict[str, Any]]:
+def scrape_arxiv(query: str, max_results: int = 20) -> List[Dict[str, Any]]:
     """
     Scrape arXiv for papers matching the query.
     Returns a list of dicts with 'title' and 'summary'.
