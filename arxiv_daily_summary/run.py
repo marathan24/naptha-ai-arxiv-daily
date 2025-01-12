@@ -98,41 +98,32 @@ class ArxivDailySummaryAgent:
             return {"status": "error", "message": f"Failed to initialize: {str(e)}"}
 
     async def add_data(self, input_data: Dict[str, Any], *args, **kwargs):
-        """
-        Fetch and store new arXiv papers.
-        
-        Args:
-            input_data: Contains search query for arXiv
-        """
         try:
             query = input_data.get("query", "ti:Decentralized AND (abs:large language models)")
             logger.info(f"Fetching papers with query: {query}")
             papers = scrape_arxiv(query=query, max_results=30)
             
             if not papers:
-                return {"status": "error", "message": "No papers found matching query"}
-
+                return {"status": "error", "message": "No papers found"}
+            
             documents = []
-            texts = []
             for paper in papers:
-                text = f"Title: {paper['title']}\nSummary: {paper['summary']}"
-                texts.append(text)
-
-            logger.info("Generating embeddings for papers")
-            embeddings = self.embedder.embed_batch(texts)
-
-            # Prepare documents with embeddings
-            for i, (paper, embedding) in enumerate(zip(papers, embeddings)):
-                doc = {
-                    "id": random.randint(1, 999999999),
-                    "title": paper["title"],
-                    "summary": paper["summary"],
-                    "embedding": embedding,
-                    "metadata": {"source": "arxiv", "query": query}
-                }
-                documents.append(doc)
-
-            logger.info(f"Storing {len(documents)} papers")
+                try:
+                    text = f"Title: {paper['title']}\nSummary: {paper['summary']}"
+                    embedding = self.embedder.embed_text(text) or [0] * 1536  # Fallback embedding
+                    
+                    doc = {
+                        "id": random.randint(1, 999999999),
+                        "title": paper["title"],
+                        "summary": paper["summary"],
+                        "embedding": embedding,
+                        "metadata": {"source": "arxiv", "query": query}
+                    }
+                    documents.append(doc)
+                except Exception as e:
+                    logger.warning(f"Error processing paper: {str(e)}")
+                    continue
+            
             for doc in tqdm(documents, desc="Storing papers"):
                 create_request = CreateStorageRequest(
                     storage_type=StorageType.DATABASE,
@@ -140,12 +131,8 @@ class ArxivDailySummaryAgent:
                     data=doc
                 )
                 await self.storage_provider.execute(create_request)
-
-            return {
-                "status": "success", 
-                "message": f"Added {len(documents)} papers",
-                "details": {"stored_count": len(documents), "query": query}
-            }
+            
+            return {"status": "success", "message": f"Added {len(documents)} papers"}
         except Exception as e:
             logger.error(f"Error adding papers: {str(e)}")
             return {"status": "error", "message": str(e)}
@@ -174,7 +161,7 @@ class ArxivDailySummaryAgent:
                 top_k=self.storage_config.retriever.k,
                 include_similarity=True,
                 columns=["title", "summary"]  
-            )
+            ).model_dump()
             
             read_request = ReadStorageRequest(
                 storage_type=StorageType.DATABASE,
@@ -223,23 +210,6 @@ class ArxivDailySummaryAgent:
             logger.error(f"Error in query: {str(e)}")
             return {"status": "error", "message": str(e)}
 
-    async def list_rows(self, input_data: Dict[str, Any], *args, **kwargs):
-        """List stored papers with optional limit"""
-        try:
-            limit = input_data.get("limit", 10)
-            list_request = ListStorageRequest(
-                storage_type=StorageType.DATABASE,
-                path=self.storage_config.path,
-                options=DatabaseReadOptions(
-                    limit=limit,
-                    columns=["id", "title", "summary"] 
-                )
-            )
-            results = await self.storage_provider.execute(list_request)
-            return {"status": "success", "rows": results.data if results else []}
-        except Exception as e:
-            logger.error(f"Error listing rows: {str(e)}")
-            return {"status": "error", "message": str(e)}
 
     async def delete_table(self, input_data: Dict[str, Any], *args, **kwargs):
         """Delete the storage table"""
@@ -320,13 +290,6 @@ if __name__ == "__main__":
                 }
             }
         },
-        {
-            "name": "List Rows",
-            "inputs": {
-                "tool_name": "list_rows",
-                "tool_input_data": {"limit": 5}
-            }
-        }
     ]
 
     for test_run in test_runs:
