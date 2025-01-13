@@ -148,26 +148,57 @@ class ArxivDailySummaryAgent:
     async def run_query(self, input_data: Dict[str, Any], *args, **kwargs):
         """
         Search papers and generate an analysis.
-        
-        Args:
-            input_data: Contains search query and specific question
         """
         try:
-            read_options = {
-                "columns": ["title", "summary"],
-                "limit": 1
-            }
-            read_request = ReadStorageRequest(
-                storage_type=StorageType.DATABASE,
-                path=self.storage_config.path,
-                options=read_options
-            )
-            result = await self.storage_provider.execute(read_request)
-            logger.info(f"Simple query result: {result}")
-            return result
+            query = input_data.get("query", "")
+            question = input_data.get("question", "Summarize relevant papers.")
+            
+            if not query:
+                return {"status": "error", "message": "Query is required"}
+
+            logger.info("Generating query embedding")
+            query_embedding = self.embedder.embed_text(query)
+            
+            try:
+                db_read_options = DatabaseReadOptions(
+                    columns=["title", "summary"],
+                    query_vector=query_embedding,
+                    vector_col="embedding",
+                    top_k=self.storage_config.retriever.k,
+                    include_similarity=True
+                )
+                logger.info(f"Created read options: {db_read_options.model_dump()}")
+            except Exception as e:
+                logger.error(f"Error creating read options: {str(e)}")
+                raise
+
+            try:
+
+                read_request = ReadStorageRequest(
+                    storage_type=StorageType.DATABASE,
+                    path=self.storage_config.path,
+                    options=db_read_options.model_dump()
+                )
+                logger.info(f"Created read request: {read_request.model_dump()}")
+            except Exception as e:
+                logger.error(f"Error creating read request: {str(e)}")
+                raise
+
+            # Everything going right till here and the issue comes after this code below
+            try:
+                results = await self.storage_provider.execute(read_request)
+                logger.info(f"Got results: {results}")
+            except Exception as e:
+                logger.error(f"Error executing storage request: {str(e)}")
+                raise
+
+            if not results or not results.data:
+                return {"status": "success", "message": "No matching papers found"}
+
+
         except Exception as e:
-            logger.error(f"Error in simple query: {str(e)}")
-            return None
+            logger.error(f"Error in query: {str(e)}", exc_info=True)
+            return {"status": "error", "message": str(e)}
 
 
     async def delete_table(self, input_data: Dict[str, Any], *args, **kwargs):
