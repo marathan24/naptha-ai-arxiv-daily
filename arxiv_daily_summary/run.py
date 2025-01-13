@@ -91,7 +91,9 @@ class ArxivDailySummaryAgent:
                 path=self.storage_config.path,
                 data={"schema": self.storage_config.schema}
             )
-            await self.storage_provider.execute(create_request)
+            
+            result = await self.storage_provider.execute(create_request)
+            logger.info(f"Table creation result: {result}")
             return {"status": "success", "message": f"Initialized table '{self.storage_config.path}'"}
         except Exception as e:
             logger.error(f"Initialization failed: {str(e)}")
@@ -110,14 +112,16 @@ class ArxivDailySummaryAgent:
             for paper in papers:
                 try:
                     text = f"Title: {paper['title']}\nSummary: {paper['summary']}"
-                    embedding = self.embedder.embed_text(text) or [0] * 1536  # Fallback embedding
+                    embedding = self.embedder.embed_text(text) or [0] * 1536
                     
                     doc = {
-                        "id": random.randint(1, 999999999),
-                        "title": paper["title"],
-                        "summary": paper["summary"],
-                        "embedding": embedding,
-                        "metadata": {"source": "arxiv", "query": query}
+                        "data": {  
+                            "id": random.randint(1, 999999999),
+                            "title": paper["title"],
+                            "summary": paper["summary"],
+                            "embedding": embedding,
+                            "metadata": {"source": "arxiv", "query": query}
+                        }
                     }
                     documents.append(doc)
                 except Exception as e:
@@ -125,18 +129,21 @@ class ArxivDailySummaryAgent:
                     continue
             
             for doc in tqdm(documents, desc="Storing papers"):
-                create_request = CreateStorageRequest(
-                    storage_type=StorageType.DATABASE,
-                    path=self.storage_config.path,
-                    data=doc
-                )
-                await self.storage_provider.execute(create_request)
+                try:
+                    create_request = CreateStorageRequest(
+                        storage_type=StorageType.DATABASE,
+                        path=self.storage_config.path,
+                        data=doc
+                    )
+                    await self.storage_provider.execute(create_request)
+                except Exception as e:
+                    logger.error(f"Error adding document: {str(e)}")
+                    continue
             
             return {"status": "success", "message": f"Added {len(documents)} papers"}
         except Exception as e:
             logger.error(f"Error adding papers: {str(e)}")
             return {"status": "error", "message": str(e)}
-
     async def run_query(self, input_data: Dict[str, Any], *args, **kwargs):
         """
         Search papers and generate an analysis.
@@ -154,7 +161,7 @@ class ArxivDailySummaryAgent:
             logger.info("Generating query embedding")
             query_embedding = self.embedder.embed_text(query)
             
-            # Doing vector seacrh and inspiration taken from the code of embedding_kb agent of Naptha AI
+            # Doing vector search and inspiration taken from the code of embedding_kb agent of Naptha AI and updated SDK of Naptha AI
             read_options = DatabaseReadOptions(
                 query_vector=query_embedding,
                 vector_col="embedding",
