@@ -144,6 +144,7 @@ class ArxivDailySummaryAgent:
         except Exception as e:
             logger.error(f"Error adding papers: {str(e)}")
             return {"status": "error", "message": str(e)}
+        
     async def run_query(self, input_data: Dict[str, Any], *args, **kwargs):
         """
         Search papers and generate an analysis.
@@ -152,70 +153,21 @@ class ArxivDailySummaryAgent:
             input_data: Contains search query and specific question
         """
         try:
-            query = input_data.get("query", "")
-            question = input_data.get("question", "Summarize relevant papers.")
-            
-            if not query:
-                return {"status": "error", "message": "Query is required"}
-
-            logger.info("Generating query embedding")
-            query_embedding = self.embedder.embed_text(query)
-            
-            # Doing vector search and inspiration taken from the code of embedding_kb agent of Naptha AI and updated SDK of Naptha AI
-            read_options = DatabaseReadOptions(
-                query_vector=query_embedding,
-                vector_col="embedding",
-                top_k=self.storage_config.retriever.k,
-                include_similarity=True,
-                columns=["title", "summary"]  
-            ).model_dump()
-            
+            read_options = {
+                "columns": ["title", "summary"],
+                "limit": 1
+            }
             read_request = ReadStorageRequest(
                 storage_type=StorageType.DATABASE,
                 path=self.storage_config.path,
                 options=read_options
             )
-            
-            results = await self.storage_provider.execute(read_request)
-            if not results or not results.data:
-                return {"status": "success", "message": "No matching papers found"}
-
-            # Prepare context from search results
-            summaries = []
-            for i, result in enumerate(results.data):
-                summary = f"Paper {i+1}:\nTitle: {result.get('title')}\n{result.get('summary')}"
-                summaries.append(summary)
-            
-            context = "\n\n".join(summaries)
-
-            messages = [
-                {"role": "system", "content": self.system_prompt.role},
-                {"role": "user", "content": (
-                    f"Based on these research papers:\n\n{context}\n\n"
-                    f"Please answer the following question: {question}"
-                )}
-            ]
-
-            llm_response = await self.inference_provider.run_inference({
-                "model": self.llm_config.get("model", "gpt-4o-mini"),
-                "messages": messages,
-                "temperature": self.llm_config.get("temperature", 0.7),
-                "max_tokens": self.llm_config.get("max_tokens", 1000)
-            })
-            
-            answer = llm_response.choices[0].message.content
-            return {
-                "status": "success", 
-                "answer": answer,
-                "metadata": {
-                    "papers_analyzed": len(results.data),
-                    "query": query,
-                    "question": question
-                }
-            }
+            result = await self.storage_provider.execute(read_request)
+            logger.info(f"Simple query result: {result}")
+            return result
         except Exception as e:
-            logger.error(f"Error in query: {str(e)}")
-            return {"status": "error", "message": str(e)}
+            logger.error(f"Error in simple query: {str(e)}")
+            return None
 
 
     async def delete_table(self, input_data: Dict[str, Any], *args, **kwargs):
