@@ -101,7 +101,7 @@ class ArxivDailySummaryAgent:
 
     async def add_data(self, input_data: Dict[str, Any], *args, **kwargs):
         try:
-            query = input_data.get("query", "ti:Decentralized AND (abs:large language models)")
+            query = input_data.get("query")
             logger.info(f"Fetching papers with query: {query}")
             papers = scrape_arxiv(query=query, max_results=20)
             
@@ -164,7 +164,7 @@ class ArxivDailySummaryAgent:
             # Using just ReadStorageRequest, need to use DatabaseReadOptions too in future for retrieval (Getting http errors for DatabaseReadOptions hence removed it)
             read_options = {
                 "columns": ["title", "summary", "embedding"],
-                "limit": 5
+                "limit": 20
             }
             
             read_request = ReadStorageRequest(
@@ -208,7 +208,8 @@ class ArxivDailySummaryAgent:
                     "papers_analyzed": len(results.data),
                     "query": query,
                     "question": question
-                }
+                },
+                
             }            
             
         except Exception as e:
@@ -281,7 +282,7 @@ if __name__ == "__main__":
             "inputs": {
                 "tool_name": "add_data",
                 "tool_input_data": {
-                    "query": "large language models AI OR DeFi"
+                    "query": "AI Agents Decentralized payments"
                 }
             }
         },
@@ -290,11 +291,20 @@ if __name__ == "__main__":
             "inputs": {
                 "tool_name": "run_query",
                 "tool_input_data": {
-                    "query": "Trends in decentralized AI",
-                    "question": "Which problems are the ones which are mentioned the most or occurring more frequently?"
+                    "query": "AI Agents Decentralized payments",
+                    "question": "Exaplin all those papers which you find relevant to Blockchain or decentralized payments"
                 }
             }
         },
+        {
+            "name": "Delete Table",
+            "inputs": {
+                "tool_name": "delete_table",
+                "tool_input_data": {
+
+                }
+            }
+        }
     ]
 
     for test_run in test_runs:
