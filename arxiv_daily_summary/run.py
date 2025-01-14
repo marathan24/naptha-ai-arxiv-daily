@@ -39,25 +39,26 @@ class ArxivDailySummaryAgent:
 
         kb_deployment = self.deployment.kb_deployments[0]
         
-        # Hard coding this as I was facing some error continuously and hence I have decided to move ahead with this approach
+        # Hard coding this as I was facing "'KBConfig' object has no attribute 'embedder'" continuously and hence I have decided to move ahead with this approach
         kb_config_dict = {
             "storage_type": kb_deployment.config.storage_type.value,  
             "path": kb_deployment.config.path,
             "schema": kb_deployment.config.schema,
+            # Hardcoding embedder and retriever config for now
             # Extract embedder config
             "embedder": {
-                "model": "text-embedding-3-small", 
-                "chunk_size": 1000,
-                "chunk_overlap": 200,
-                "separators": ["\n\n", "\n", ". ", " ", ""],
-                "embedding_dim": 1536
-            },
+              "model": "text-embedding-3-small",
+              "chunk_size": 1000,
+              "chunk_overlap": 200,
+              "separators": ["\n\n", "\n", ". ", " ", ""],
+              "embedding_dim": 1536
+          },
             # Extract retriever config
             "retriever": {
-                "type": "vector",
-                "field": "embedding",
-                "k": 5
-            }
+              "type": "vector",
+              "field": "embedding",
+              "k": 5
+          }
         }
         
         self.storage_config = ArxivStorageConfig(**kb_config_dict)
@@ -103,7 +104,7 @@ class ArxivDailySummaryAgent:
         try:
             query = input_data.get("query", "ti:Decentralized AND (abs:large language models)")
             logger.info(f"Fetching papers with query: {query}")
-            papers = scrape_arxiv(query=query, max_results=30)
+            papers = scrape_arxiv(query=query, max_results=20)
             
             if not papers:
                 return {"status": "error", "message": "No papers found"}
@@ -148,6 +149,8 @@ class ArxivDailySummaryAgent:
     async def run_query(self, input_data: Dict[str, Any], *args, **kwargs):
         """
         Search papers and generate an analysis.
+        
+        input_data: Contains search query and specific question
         """
         try:
             query = input_data.get("query", "")
@@ -155,54 +158,67 @@ class ArxivDailySummaryAgent:
             
             if not query:
                 return {"status": "error", "message": "Query is required"}
-
+                
             logger.info("Generating query embedding")
             query_embedding = self.embedder.embed_text(query)
             
-            try:
-                db_read_options = DatabaseReadOptions(
-                    columns=["title", "summary"],
-                    query_vector=query_embedding,
-                    vector_col="embedding",
-                    top_k=self.storage_config.retriever.k,
-                    include_similarity=True
-                )
-                logger.info(f"Created read options: {db_read_options.model_dump()}")
-            except Exception as e:
-                logger.error(f"Error creating read options: {str(e)}")
-                raise
+            # Using just ReadStorageRequest, need to use DatabaseReadOptions too in future for retrieval (Getting http errors for DatabaseReadOptions hence removed it)
+            read_options = {
+                "columns": ["title", "summary", "embedding"],
+                "limit": 5
+            }
+            
+            read_request = ReadStorageRequest(
+                storage_type=StorageType.DATABASE,
+                path=self.storage_config.path,
+                options=read_options
+            )
+            
+            results = await self.storage_provider.execute(read_request)
+            logger.info(f"Simple query result: {results.data}")
+            logger.info(f"Type of data result : {type(results.data)}")
 
-            try:
+            summaries = []
+            for i, result in enumerate(results.data):
+                summary = f"Paper {i+1}:\nTitle: {result.get('title')}\n{result.get('summary')}"
+                summaries.append(summary)
+            
+            context = "\n\n".join(summaries)
 
-                read_request = ReadStorageRequest(
-                    storage_type=StorageType.DATABASE,
-                    path=self.storage_config.path,
-                    options=db_read_options.model_dump()
-                )
-                logger.info(f"Created read request: {read_request.model_dump()}")
-            except Exception as e:
-                logger.error(f"Error creating read request: {str(e)}")
-                raise
+            messages = [
+                {"role": "system", "content": self.system_prompt.role},
+                {"role": "user", "content": (
+                    f"Based on these research papers:\n\n{context}\n\n"
+                    f"Please answer the following question: {question}"
+                )}
+            ]
 
-            # Everything going right till here and the issue comes after this code below
-            try:
-                results = await self.storage_provider.execute(read_request)
-                logger.info(f"Got results: {results}")
-            except Exception as e:
-                logger.error(f"Error executing storage request: {str(e)}")
-                raise
+            llm_response = await self.inference_provider.run_inference({
+                "model": self.llm_config.get("model", "gpt-4o-2024-11-20"),
+                "messages": messages,
+                "temperature": self.llm_config.get("temperature", 0.1),
+                "max_tokens": self.llm_config.get("max_tokens", 2000)
+            })
+            
+            answer = llm_response.choices[0].message.content
 
-            if not results or not results.data:
-                return {"status": "success", "message": "No matching papers found"}
-
-
+            return {
+                "status": "success", 
+                "answer": answer,
+                "metadata": {
+                    "papers_analyzed": len(results.data),
+                    "query": query,
+                    "question": question
+                }
+            }            
+            
         except Exception as e:
-            logger.error(f"Error in query: {str(e)}", exc_info=True)
-            return {"status": "error", "message": str(e)}
+            logger.error(f"Error in simple query: {str(e)}")
+            return None
 
-
+        
     async def delete_table(self, input_data: Dict[str, Any], *args, **kwargs):
-        """Delete the storage table"""
+        """Delete the storage table (Not used for now)"""
         try:
             table_name = input_data.get("table_name", self.storage_config.path)
             delete_request = DeleteStorageRequest(
@@ -276,7 +292,7 @@ if __name__ == "__main__":
                 "tool_name": "run_query",
                 "tool_input_data": {
                     "query": "Trends in decentralized AI",
-                    "question": "What are the main themes in decentralized AI recently?"
+                    "question": "Which problems are the ones which are mentioned the most or occurring more frequently?"
                 }
             }
         },
