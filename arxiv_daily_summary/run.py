@@ -10,9 +10,8 @@ from naptha_sdk.storage.storage_provider import StorageProvider
 from naptha_sdk.storage.schemas import (
     CreateStorageRequest,
     ReadStorageRequest,
-    ListStorageRequest,
+    ListStorageRequest, # not used for now
     DeleteStorageRequest,
-    DatabaseReadOptions,
     StorageType
 )
 from naptha_sdk.schemas import AgentRunInput
