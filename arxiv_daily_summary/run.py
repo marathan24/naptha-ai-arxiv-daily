@@ -174,8 +174,6 @@ class ArxivDailySummaryAgent:
             )
             
             results = await self.storage_provider.execute(read_request)
-            logger.info(f"Simple query result: {results.data}")
-            logger.info(f"Type of data result : {type(results.data)}")
 
             summaries = []
             for i, result in enumerate(results.data):
@@ -308,6 +306,7 @@ if __name__ == "__main__":
     ]
 
     for test_run in test_runs:
+                
         logger.info(f"\nExecuting {test_run['name']}...")
         run_config = {
             "inputs": test_run["inputs"],
@@ -318,6 +317,7 @@ if __name__ == "__main__":
         
         try:
             response = asyncio.run(run(run_config))
-            logger.info(f"{test_run['name']} Response: {response}")
+            if test_run["name"] != "Add Data":
+                logger.info(f"{test_run['name']} Response: {response}")
         except Exception as e:
             logger.error(f"Error in {test_run['name']}: {str(e)}")
