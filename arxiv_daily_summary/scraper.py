@@ -10,6 +10,7 @@ def scrape_arxiv(query: str, max_results: int = 20) -> List[Dict[str, Any]]:
     Returns a list of dicts with 'title' and 'summary'.
     """
     try:
+
         search = arxiv.Search(
             query=query,
             max_results=max_results,
@@ -21,6 +22,8 @@ def scrape_arxiv(query: str, max_results: int = 20) -> List[Dict[str, Any]]:
                 "title": result.title,
                 "summary": result.summary
             })
+            logger.info(f"Scraped paper: {result.title}")
+
         logger.info(f"Scraped {len(papers)} papers for query: {query}")
         return papers
     except Exception as e:
